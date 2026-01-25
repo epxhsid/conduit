@@ -14,8 +14,6 @@ func TestOpenStream(t *testing.T) {
 	mux := NewMultiplexer(client)
 
 	stream1 := mux.OpenStream()
-	fmt.Printf("Opening stream ID %d\n", stream1.id)
-	fmt.Printf("Multiplexer has %d streams\n", len(mux.streams))
 	if stream1.id != 1 {
 		t.Errorf("Expected stream ID 1, got %d", stream1.id)
 	}
@@ -29,8 +27,6 @@ func TestOpenStream(t *testing.T) {
 	}
 
 	stream2 := mux.OpenStream()
-	fmt.Printf("Opening stream ID %d\n", stream2.id)
-	fmt.Printf("Multiplexer has %d streams\n", len(mux.streams))
 
 	if stream2.id != 3 {
 		t.Errorf("Expected stream ID 3, got %d", stream2.id)
@@ -51,6 +47,22 @@ func TestOpenStream(t *testing.T) {
 		t.Error("Stream 3 not properly registered")
 	}
 	mux.mu.Unlock()
+}
+
+func TestOpenStreamIDSequence(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	mux := NewMultiplexer(client)
+
+	expectedIDs := []uint32{1, 3, 5, 7, 9}
+	for _, expectedID := range expectedIDs {
+		stream := mux.OpenStream()
+		if stream.id != expectedID {
+			t.Errorf("Expected stream ID %d, got %d", expectedID, stream.id)
+		}
+	}
 }
 
 func TestOpenStreamConcurrent(t *testing.T) {

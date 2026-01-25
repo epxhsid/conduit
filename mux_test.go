@@ -52,3 +52,41 @@ func TestOpenStream(t *testing.T) {
 	}
 	mux.mu.Unlock()
 }
+
+func TestOpenStreamConcurrent(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	mux := NewMultiplexer(client)
+
+	const numStreams = 10
+	streams := make([]*Stream, numStreams)
+	done := make(chan bool, numStreams)
+
+	for i := 1; i <= numStreams; i++ {
+		go func(index int) {
+			streams[index-1] = mux.OpenStream()
+			done <- true
+		}(i)
+	}
+
+	for i := 1; i <= numStreams; i++ {
+		<-done
+	}
+
+	seenIDs := make(map[uint32]bool)
+	for _, stream := range streams {
+		if seenIDs[stream.id] {
+			t.Errorf("Duplicate stream ID: %d", stream.id)
+		}
+		seenIDs[stream.id] = true
+	}
+
+	mux.mu.Lock()
+	if len(mux.streams) != numStreams {
+		t.Errorf("Expected %d streams, got %d", numStreams, len(mux.streams))
+	}
+	fmt.Printf("Multiplexer has %d streams\n", len(mux.streams))
+	mux.mu.Unlock()
+}

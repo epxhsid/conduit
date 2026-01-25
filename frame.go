@@ -7,16 +7,23 @@ import (
 	"net"
 )
 
-const MaxMessageSize uint32 = 10 << 20
-
 // Framing:
 // [4 bytes length][message bytes]
 // big-endian uint32 (4 bytes) length prefix, standard for network protocols
 // maximum message size is 10 MB
-func SendMessage(conn net.Conn, msg []byte) error {
-	length := uint32(len(msg))
+type Frame struct {
+	StreamID uint32
+	Payload  []byte
+}
+
+func WriteMessage(conn net.Conn, f *Frame) error {
+	length := uint32(len(f.Payload))
 	if length > MaxMessageSize {
 		return fmt.Errorf("message too large: %d bytes (max %d)", length, MaxMessageSize)
+	}
+
+	if err := binary.Write(conn, binary.BigEndian, f.StreamID); err != nil {
+		return err
 	}
 
 	if err := binary.Write(conn, binary.BigEndian, length); err != nil {
@@ -24,9 +31,8 @@ func SendMessage(conn net.Conn, msg []byte) error {
 	}
 
 	written := 0
-	for written < len(msg) {
-		n, err := conn.Write(msg[written:])
-		fmt.Printf("sent: %d bytes\n", n)
+	for written < len(f.Payload) {
+		n, err := conn.Write(f.Payload[written:])
 		if err != nil {
 			return err
 		}
@@ -36,21 +42,27 @@ func SendMessage(conn net.Conn, msg []byte) error {
 	return nil
 }
 
-func ReadMessage(conn net.Conn) ([]byte, error) {
+func ReadMessage(conn net.Conn, f *Frame) (Frame, error) {
+	var frame Frame
 	var length uint32
+
+	if err := binary.Read(conn, binary.BigEndian, &f.StreamID); err != nil {
+		return frame, err
+	}
+
 	if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
-		return nil, err
+		return frame, err
 	}
 
 	if length > MaxMessageSize {
-		return nil, fmt.Errorf("message length %d exceeds maximum %d", length, MaxMessageSize)
+		return frame, fmt.Errorf("message length %d exceeds maximum %d", length, MaxMessageSize)
 	}
 
 	if length == 0 {
-		return []byte{}, nil
+		return frame, nil
 	}
 
 	msg := make([]byte, length)
 	_, err := io.ReadFull(conn, msg)
-	return msg, err
+	return frame, err
 }

@@ -16,27 +16,35 @@ func TestSendMessageAndReadMessage(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
-	testMsg := []byte("sample message stream")
-
+	testStreamID := uint32(1)
+	testPayload := []byte("sample message stream")
 	errChan := make(chan error, 1)
+
 	go func() {
-		errChan <- SendMessage(client, testMsg)
+		errChan <- WriteFrame(client, &Frame{
+			StreamID: testStreamID,
+			Payload:  testPayload,
+		})
 	}()
 
-	received, err := ReadMessage(server)
+	frame, err := ReadFrame(server)
 	if err != nil {
-		t.Fatalf("ReadMessage failed: %v", err)
+		t.Fatalf("ReadFrame failed: %v", err)
 	}
 
-	if err := <-errChan; err != nil {
-		t.Fatalf("SendMessage failed: %v", err)
+	if sendErr := <-errChan; sendErr != nil {
+		t.Fatalf("WriteFrame failed: %v", sendErr)
 	}
 
-	if !bytes.Equal(received, testMsg) {
-		t.Errorf("Expected %q, got %q", testMsg, received)
+	if frame.StreamID != testStreamID {
+		t.Errorf("Expected StreamID %d, got %d", testStreamID, frame.StreamID)
 	}
 
-	fmt.Printf("Received message: %s\n", string(received))
+	if !bytes.Equal(frame.Payload, testPayload) {
+		t.Errorf("Expected %q, got %q", testPayload, frame.Payload)
+	}
+
+	fmt.Printf("Received message: %s\n", string(frame.Payload))
 }
 
 func TestMaxMessageSize(t *testing.T) {
@@ -44,9 +52,14 @@ func TestMaxMessageSize(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
+	testStreamID := uint32(1)
 	largeMessage := make([]byte, MaxMessageSize+1)
 
-	err := SendMessage(client, largeMessage)
+	err := WriteFrame(client, &Frame{
+		StreamID: testStreamID,
+		Payload:  largeMessage,
+	})
+
 	if err == nil {
 		t.Error("Expected error for oversized message, got nil")
 	}
@@ -56,27 +69,32 @@ func TestEmptyMessage(t *testing.T) {
 	client, server := net.Pipe()
 	defer client.Close()
 	defer server.Close()
+
+	testStreamID := uint32(1)
 	emptyMessage := []byte{}
 
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- SendMessage(client, emptyMessage)
+		errChan <- WriteFrame(client, &Frame{
+			StreamID: testStreamID,
+			Payload:  emptyMessage,
+		})
 	}()
-	received, err := ReadMessage(server)
+	received, err := ReadFrame(server)
 	if err != nil {
-		t.Fatalf("ReadMessage failed: %v", err)
+		t.Fatalf("ReadFrame failed: %v", err)
 	}
 
 	if err := <-errChan; err != nil {
-		t.Fatalf("SendMessage failed: %v", err)
+		t.Fatalf("WriteFrame failed: %v", err)
 	}
 
-	if !bytes.Equal(received, emptyMessage) {
-		t.Errorf("Expected %q, got %q", emptyMessage, received)
+	if !bytes.Equal(received.Payload, emptyMessage) {
+		t.Errorf("Expected %q, got %q", emptyMessage, received.Payload)
 	}
 
-	if len(received) != 0 {
-		t.Errorf("Expected empty message, got length %d", len(received))
+	if len(received.Payload) != 0 {
+		t.Errorf("Expected empty message, got length %d", len(received.Payload))
 	}
 
 	fmt.Println("Empty message test passed")
@@ -87,17 +105,11 @@ func TestAll(t *testing.T) {
 		t.Fail()
 	}
 
-	fmt.Println("TestSendMessageAndReadMessage passed")
-
 	if (t.Run("TestMaxMessageSize", TestMaxMessageSize)) == false {
 		t.Fail()
 	}
 
-	fmt.Println("TestMaxMessageSize passed")
-
 	if (t.Run("TestEmptyMessage", TestEmptyMessage)) == false {
 		t.Fail()
 	}
-
-	fmt.Println("TestEmptyMessage passed")
 }

@@ -98,4 +98,6 @@ func TestAll(t *testing.T) {
 	if (t.Run("TestEmptyMessage", TestEmptyMessage)) == false {
 		t.Fail()
 	}
+
+	fmt.Println("TestEmptyMessage passed")
 }

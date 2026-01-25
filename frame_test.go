@@ -16,7 +16,7 @@ func TestSendMessageAndReadMessage(t *testing.T) {
 	defer client.Close()
 	defer server.Close()
 
-	testMsg := []byte("Hello, World!")
+	testMsg := []byte("sample message stream")
 
 	errChan := make(chan error, 1)
 	go func() {
@@ -25,7 +25,7 @@ func TestSendMessageAndReadMessage(t *testing.T) {
 
 	received, err := ReadMessage(server)
 	if err != nil {
-		t.Fatalf("ReadMessage faile : %v", err)
+		t.Fatalf("ReadMessage failed: %v", err)
 	}
 
 	if err := <-errChan; err != nil {
@@ -37,4 +37,17 @@ func TestSendMessageAndReadMessage(t *testing.T) {
 	}
 
 	fmt.Printf("Received message: %s\n", string(received))
+}
+
+func TestMaxMessageSize(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	largeMessage := make([]byte, MaxMessageSize+1)
+
+	err := SendMessage(client, largeMessage)
+	if err == nil {
+		t.Error("Expected error for oversized message, got nil")
+	}
 }

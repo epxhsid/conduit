@@ -26,6 +26,7 @@ func SendMessage(conn net.Conn, msg []byte) error {
 	written := 0
 	for written < len(msg) {
 		n, err := conn.Write(msg[written:])
+		fmt.Printf("sent: %d bytes\n", n)
 		if err != nil {
 			return err
 		}

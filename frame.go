@@ -16,7 +16,7 @@ type Frame struct {
 	Payload  []byte
 }
 
-func WriteMessage(conn net.Conn, f *Frame) error {
+func WriteFrame(conn net.Conn, f *Frame) error {
 	length := uint32(len(f.Payload))
 	if length > MaxMessageSize {
 		return fmt.Errorf("message too large: %d bytes (max %d)", length, MaxMessageSize)
@@ -42,11 +42,11 @@ func WriteMessage(conn net.Conn, f *Frame) error {
 	return nil
 }
 
-func ReadMessage(conn net.Conn, f *Frame) (Frame, error) {
+func ReadFrame(conn net.Conn) (Frame, error) {
 	var frame Frame
 	var length uint32
 
-	if err := binary.Read(conn, binary.BigEndian, &f.StreamID); err != nil {
+	if err := binary.Read(conn, binary.BigEndian, &frame.StreamID); err != nil {
 		return frame, err
 	}
 
@@ -62,7 +62,7 @@ func ReadMessage(conn net.Conn, f *Frame) (Frame, error) {
 		return frame, nil
 	}
 
-	msg := make([]byte, length)
-	_, err := io.ReadFull(conn, msg)
+	frame.Payload = make([]byte, length)
+	_, err := io.ReadFull(conn, frame.Payload)
 	return frame, err
 }

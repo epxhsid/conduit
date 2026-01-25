@@ -15,12 +15,12 @@ const MaxMessageSize uint32 = 10 << 20
 // maximum message size is 10 MB
 func SendMessage(conn net.Conn, msg []byte) error {
 	length := uint32(len(msg))
-	if err := binary.Write(conn, binary.BigEndian, length); err != nil {
-		return err
-	}
-
 	if length > MaxMessageSize {
 		return fmt.Errorf("message too large: %d bytes (max %d)", length, MaxMessageSize)
+	}
+
+	if err := binary.Write(conn, binary.BigEndian, length); err != nil {
+		return err
 	}
 
 	written := 0

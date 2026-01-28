@@ -1,9 +1,11 @@
-package portal
+package conduit
 
-import "errors"
-
-const MaxMessageSize uint32 = 10 << 20
+import "fmt"
 
 var (
-	ErrStreamClosed = errors.New("stream closed")
+	MaxMessageSize = 10 << 20 // 10MB
+)
+
+var (
+	ErrMessageTooLarge = fmt.Errorf("Message size exceeds maximum allowed size of %d bytes", MaxMessageSize)
 )

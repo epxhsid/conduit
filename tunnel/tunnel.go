@@ -1,6 +1,8 @@
 package tunnel
 
 import (
+	"time"
+
 	"github.com/hashicorp/yamux"
 )
 
@@ -10,5 +12,7 @@ type Tunnel struct {
 	LocalPort int
 	Domain    string
 	Session   *yamux.Session
-	Stream    map[string]*yamux.Stream
+	Streams   map[string]*yamux.Stream
+	CreatedAt time.Time
+	Active    bool
 }

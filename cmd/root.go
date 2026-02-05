@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -9,4 +12,11 @@ var rootCmd = &cobra.Command{
 	Short: "Expose a local port to a public domain",
 	Long:  `A CLI tool to expose local services behind NAT over a multiplexed TCP tunnel`,
 	Args:  cobra.ExactArgs(2),
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

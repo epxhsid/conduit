@@ -33,6 +33,15 @@ var exposeCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	exposeCmd.Flags().StringVarP(&domain, "domain", "d", "", "Public domain to expose service on (required)")
+	exposeCmd.Flags().IntVarP(&localPort, "port", "p", 8080, "Local port to expose")
+	exposeCmd.MarkFlagRequired("port")
+	exposeCmd.MarkFlagRequired("domain")
+
+	rootCmd.AddCommand(exposeCmd)
+}
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

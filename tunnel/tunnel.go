@@ -95,7 +95,15 @@ func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
 // mark tunnel as inactive
 // close all streams
 func (t *Tunnel) Close() {
+	t.Active = false
 
+	for _, stream := range t.Streams {
+		stream.Close()
+	}
+
+	if t.Session != nil {
+		t.Session.Close()
+	}
 }
 
 func (t *Tunnel) ProxyStream() {

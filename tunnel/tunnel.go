@@ -1,11 +1,14 @@
 package tunnel
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 )
 
@@ -15,6 +18,7 @@ type Tunnel struct {
 	Domain    string
 	Session   *yamux.Session
 	Streams   map[string]*yamux.Stream
+	mu        sync.Mutex
 	CreatedAt time.Time
 	Active    bool
 }
@@ -31,25 +35,61 @@ func NewTunnel(id string, localPort int, domain string, session *yamux.Session) 
 	}
 }
 
+type TunnelInterface interface {
+	Start(ctx context.Context)
+	HandleStream(stream *yamux.Stream, localPort int)
+	Close()
+	ProxyStream()
+	ConnectToService(svcAddr, domain string, localPort int) (*Tunnel, error)
+}
+
 // TODO: Implement tunnel start logic
 // Accept incoming streams from the yamux session
 // For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
 // run in a loop until tunnel is closed
-func (t *Tunnel) Start() {
-	fmt.Printf("Tunnel started for domain: %s\n", t.Domain)
-	for t.Active {
-		stream, err := t.Session.AcceptStream()
+func (t *Tunnel) Start(ctx context.Context) {
+	fmt.Printf("Tunnel started: domain=%s localPort=%d\n", t.Domain, t.LocalPort)
+	var wg sync.WaitGroup
+	defer func() {
+		fmt.Println("Waiting for active streams to finish...")
+		wg.Wait()
+		fmt.Println("Tunnel stopped")
+	}()
+
+	for {
+		stream, err := t.Session.AcceptStreamWithContext(ctx)
 		if err != nil {
-			if !t.Active {
-				fmt.Printf("Tunnel closed: %v\n", t.Domain)
+			select {
+			case <-ctx.Done():
+				fmt.Println("Tunnel shutting down...")
 				return
+			default:
+				fmt.Printf("Accept stream error: %v\n", err)
+				continue
 			}
 
-			fmt.Printf("Error accepting stream: %v\n", err)
-			continue
 		}
 
-		go t.HandleStream(stream, t.LocalPort)
+		streamID := uuid.New().String()
+		t.mu.Lock()
+		t.Streams[streamID] = stream
+		t.mu.Unlock()
+
+		fmt.Printf("New stream %s accepted for domain=%s\n", streamID, t.Domain)
+
+		wg.Add(1)
+		go func(id string, s *yamux.Stream) {
+			defer wg.Done()
+			defer func() {
+				t.mu.Lock()
+				delete(t.Streams, id)
+				t.mu.Unlock()
+				s.Close()
+				fmt.Printf("Stream %s finished\n", id)
+			}()
+
+			t.HandleStream(s, t.LocalPort)
+		}(streamID, stream)
 	}
 }
 
@@ -61,7 +101,6 @@ func (t *Tunnel) Start() {
 // io.Copy bidirectionally between stream and local connection (sorry for the mess)
 // and finally, wait for either copy to finish
 func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
-
 	localAddr := fmt.Sprintf("localhost:%d", localPort)
 	localConn, err := net.Dial("tcp", localAddr)
 	if err != nil {

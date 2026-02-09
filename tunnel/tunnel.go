@@ -1,6 +1,8 @@
 package tunnel
 
 import (
+	"fmt"
+	"net"
 	"time"
 
 	"github.com/hashicorp/yamux"
@@ -37,6 +39,13 @@ func (t *Tunnel) Start() {
 	// run in a loop until tunnel is closed
 }
 
+func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
+	// TOOD: Implement stream handling logic
+	// Helper to proxy one request
+	// Connect to local service at localhost:localPort
+	// io.Copy bidirectionally between stream and local connection
+}
+
 func (t *Tunnel) ProxyStream() {
 	// TODO: Implement stream proxying logic
 	// Takes one stream (one HTTP request)
@@ -51,17 +60,23 @@ func (t *Tunnel) Close() {
 	// close all streams
 }
 
-func (t *Tunnel) ConnectToService(svcAddr, domain string, localPort int) *Tunnel {
+func (t *Tunnel) ConnectToService(svcAddr, domain string, localPort int) (*Tunnel, error) {
 	// TODO: Dial TCP to your server
+	conn, err := net.Dial("tcp", svcAddr)
+	if err != nil {
+		return nil, err
+	}
 	// Create yamux client session
+	session, err := yamux.Client(conn, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Generate a unique tunnel ID (e.g. UUID)
+	id := fmt.Sprintf("%d", time.Now().UnixNano())
+
+	// assign the new Tunnel instance to the variable t
+	t = NewTunnel(id, localPort, domain, session)
 	// send a handshake with the domain and localPort
 	// return the Tunnel instance
-	return nil
-}
-
-func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
-	// TOOD: Implement stream handling logic
-	// Helper to proxy one request
-	// Connect to local service at localhost:localPort
-	// io.Copy bidirectionally between stream and local connection
+	return t, nil
 }

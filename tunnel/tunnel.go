@@ -113,23 +113,24 @@ func (t *Tunnel) ProxyStream() {
 	// copies response back through the stream
 }
 
+// TODO: Dial TCP to server
+// Create yamux client session
+// Generate a unique tunnel ID (e.g. UUID)
+// assign the new Tunnel instance to the variable t
+// send a handshake with the domain and localPort
+// return the Tunnel instance
 func (t *Tunnel) ConnectToService(svcAddr, domain string, localPort int) (*Tunnel, error) {
-	// TODO: Dial TCP to your server
 	conn, err := net.Dial("tcp", svcAddr)
 	if err != nil {
 		return nil, err
 	}
-	// Create yamux client session
+
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
 		return nil, err
 	}
-	// Generate a unique tunnel ID (e.g. UUID)
-	id := fmt.Sprintf("%d", time.Now().UnixNano())
 
-	// assign the new Tunnel instance to the variable t
+	id := fmt.Sprintf("%d", time.Now().UnixNano())
 	t = NewTunnel(id, localPort, domain, session)
-	// send a handshake with the domain and localPort
-	// return the Tunnel instance
 	return t, nil
 }

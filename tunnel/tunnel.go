@@ -2,13 +2,13 @@ package tunnel
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"time"
 
 	"github.com/hashicorp/yamux"
 )
 
-// Tunnel represents a multiplexed TCP tunnel session between the local service and the public domain.
 type Tunnel struct {
 	ID        string
 	LocalPort int
@@ -19,7 +19,6 @@ type Tunnel struct {
 	Active    bool
 }
 
-// NewTunnel initializes a new Tunnel instance.
 func NewTunnel(id string, localPort int, domain string, session *yamux.Session) *Tunnel {
 	return &Tunnel{
 		ID:        id,
@@ -32,10 +31,12 @@ func NewTunnel(id string, localPort int, domain string, session *yamux.Session) 
 	}
 }
 
+// TODO: Implement tunnel start logic
+// Accept incoming streams from the yamux session
+// For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
+// run in a loop until tunnel is closed
 func (t *Tunnel) Start() {
-	// TODO: Implement tunnel start logic
-	// Accept incoming streams from the yamux session
-	// For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
+
 	for t.Active {
 		stream, err := t.Session.AcceptStream()
 		if err != nil {
@@ -46,14 +47,55 @@ func (t *Tunnel) Start() {
 		}
 		go t.HandleStream(stream, t.LocalPort)
 	}
-	// run in a loop until tunnel is closed
+
 }
 
+// TOOD: Implement stream handling logic
+// Helper to proxy one request
+// Connect to local service at localhost:localPort
+// Bidirectionally copy data between the stream and the local connection
+// copy from stream to local connection and vice versa
+// io.Copy bidirectionally between stream and local connection (sorry for the mess)
+// and finally, wait for either copy to finish
 func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
-	// TOOD: Implement stream handling logic
-	// Helper to proxy one request
-	// Connect to local service at localhost:localPort
-	// io.Copy bidirectionally between stream and local connection
+
+	localAddr := fmt.Sprintf("localhost:%d", localPort)
+	localConn, err := net.Dial("tcp", localAddr)
+	if err != nil {
+		fmt.Printf("Error connecting to local service: %v\n", err)
+		stream.Close()
+		return
+	}
+	defer localConn.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, err := io.Copy(localConn, stream)
+		if err != nil {
+			fmt.Printf("Error copying from stream to local connection: %v\n", err)
+		}
+		done <- struct{}{}
+	}()
+
+	go func() {
+		defer close(done)
+		_, err := io.Copy(stream, localConn)
+		if err != nil {
+			fmt.Printf("Error copying from local connection to stream: %v\n", err)
+		}
+		done <- struct{}{}
+	}()
+
+	<-done
+}
+
+// TODO: Implement tunnel close logic
+// clean shutdown of the session
+// mark tunnel as inactive
+// close all streams
+func (t *Tunnel) Close() {
+
 }
 
 func (t *Tunnel) ProxyStream() {
@@ -61,13 +103,6 @@ func (t *Tunnel) ProxyStream() {
 	// Takes one stream (one HTTP request)
 	// forward data between the stream and the local service
 	// copies response back through the stream
-}
-
-func (t *Tunnel) Close() {
-	// TODO: Implement tunnel close logic
-	// clean shutdown of the session
-	// mark tunnel as inactive
-	// close all streams
 }
 
 func (t *Tunnel) ConnectToService(svcAddr, domain string, localPort int) (*Tunnel, error) {

@@ -36,21 +36,24 @@ func NewTunnel(id string, localPort int, domain string, session *yamux.Session) 
 // For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
 // run in a loop until tunnel is closed
 func (t *Tunnel) Start() {
-
+	fmt.Printf("Tunnel started for domain: %s\n", t.Domain)
 	for t.Active {
 		stream, err := t.Session.AcceptStream()
 		if err != nil {
-			if t.Active {
-				fmt.Printf("Error accepting stream: %v\n", err)
+			if !t.Active {
+				fmt.Printf("Tunnel closed: %v\n", t.Domain)
+				return
 			}
-			return
+
+			fmt.Printf("Error accepting stream: %v\n", err)
+			continue
 		}
+
 		go t.HandleStream(stream, t.LocalPort)
 	}
-
 }
 
-// TOOD: Implement stream handling logic
+// TODO: Implement stream handling logic
 // Helper to proxy one request
 // Connect to local service at localhost:localPort
 // Bidirectionally copy data between the stream and the local connection

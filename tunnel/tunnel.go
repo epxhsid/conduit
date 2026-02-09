@@ -36,6 +36,16 @@ func (t *Tunnel) Start() {
 	// TODO: Implement tunnel start logic
 	// Accept incoming streams from the yamux session
 	// For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
+	for t.Active {
+		stream, err := t.Session.AcceptStream()
+		if err != nil {
+			if t.Active {
+				fmt.Printf("Error accepting stream: %v\n", err)
+			}
+			return
+		}
+		go t.HandleStream(stream, t.LocalPort)
+	}
 	// run in a loop until tunnel is closed
 }
 

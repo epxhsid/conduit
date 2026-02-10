@@ -130,6 +130,39 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 	wg.Wait()
 }
 
+func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux.Stream, localPort int) {
+	localAddr := fmt.Sprintf("localhost:%d", localPort)
+	localConn, err := net.Dial("tcp", localAddr)
+	if err != nil {
+		fmt.Printf("Error connecting to local service: %v\n", err)
+		stream.Close()
+		return
+	}
+	defer localConn.Close()
+	defer stream.Close()
+
+	done := make(chan struct{})
+
+	copyFunc := func(dst, src net.Conn) {
+		_, _ = io.Copy(dst, src)
+		done <- struct{}{}
+	}
+
+	go copyFunc(localConn, stream)
+	go copyFunc(stream, localConn)
+
+	select {
+	case <-ctx.Done():
+		fmt.Println("Stream handling context cancelled, closing connections...")
+		localConn.Close()
+		stream.Close()
+		return
+	case <-done:
+		fmt.Println("Stream handling completed")
+		return
+	}
+}
+
 // TODO: Implement tunnel close logic
 // clean shutdown of the session
 // mark tunnel as inactive

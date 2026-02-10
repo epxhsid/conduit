@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/yamux"
 )
 
-type Tunnel struct {
+type Multiplexer struct {
 	ID        string
 	LocalPort int
 	Domain    string
@@ -23,8 +23,8 @@ type Tunnel struct {
 	Active    bool
 }
 
-func NewTunnel(id string, localPort int, domain string, session *yamux.Session) *Tunnel {
-	return &Tunnel{
+func NewMultiplexer(id string, localPort int, domain string, session *yamux.Session) *Multiplexer {
+	return &Multiplexer{
 		ID:        id,
 		LocalPort: localPort,
 		Domain:    domain,
@@ -35,25 +35,25 @@ func NewTunnel(id string, localPort int, domain string, session *yamux.Session) 
 	}
 }
 
-type TunnelInterface interface {
+type MultiplexerInterface interface {
 	Start(ctx context.Context)
 	HandleStream(stream *yamux.Stream, localPort int)
 	Close()
 	ProxyStream()
-	ConnectToService(svcAddr, domain string, localPort int) (*Tunnel, error)
+	ConnectToService(svcAddr, domain string, localPort int) (*Multiplexer, error)
 }
 
 // TODO: Implement tunnel start logic
 // Accept incoming streams from the yamux session
 // For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
 // run in a loop until tunnel is closed
-func (t *Tunnel) Start(ctx context.Context) {
-	fmt.Printf("Tunnel started: domain=%s localPort=%d\n", t.Domain, t.LocalPort)
+func (t *Multiplexer) Start(ctx context.Context) {
+	fmt.Printf("Multiplexer started: domain=%s localPort=%d\n", t.Domain, t.LocalPort)
 	var wg sync.WaitGroup
 	defer func() {
 		fmt.Println("Waiting for active streams to finish...")
 		wg.Wait()
-		fmt.Println("Tunnel stopped")
+		fmt.Println("Multiplexer stopped")
 	}()
 
 	for {
@@ -61,7 +61,7 @@ func (t *Tunnel) Start(ctx context.Context) {
 		if err != nil {
 			select {
 			case <-ctx.Done():
-				fmt.Println("Tunnel shutting down...")
+				fmt.Println("Multiplexer shutting down...")
 				return
 			default:
 				fmt.Printf("Accept stream error: %v\n", err)
@@ -100,7 +100,7 @@ func (t *Tunnel) Start(ctx context.Context) {
 // copy from stream to local connection and vice versa
 // io.Copy bidirectionally between stream and local connection (sorry for the mess)
 // and finally, wait for either copy to finish
-func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
+func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 	localAddr := fmt.Sprintf("localhost:%d", localPort)
 	localConn, err := net.Dial("tcp", localAddr)
 	if err != nil {
@@ -136,7 +136,7 @@ func (t *Tunnel) HandleStream(stream *yamux.Stream, localPort int) {
 // clean shutdown of the session
 // mark tunnel as inactive
 // close all streams
-func (t *Tunnel) Close() {
+func (t *Multiplexer) Close() {
 	t.Active = false
 
 	for _, stream := range t.Streams {
@@ -148,7 +148,7 @@ func (t *Tunnel) Close() {
 	}
 }
 
-func (t *Tunnel) ProxyStream() {
+func (t *Multiplexer) ProxyStream() {
 	// TODO: Implement stream proxying logic
 	// Takes one stream (one HTTP request)
 	// forward data between the stream and the local service
@@ -161,7 +161,7 @@ func (t *Tunnel) ProxyStream() {
 // assign the new Tunnel instance to the variable t
 // send a handshake with the domain and localPort
 // return the Tunnel instance
-func (t *Tunnel) ConnectToService(svcAddr, domain string, localPort int) (*Tunnel, error) {
+func (t *Multiplexer) ConnectToService(svcAddr, domain string, localPort int) (*Multiplexer, error) {
 	conn, err := net.Dial("tcp", svcAddr)
 	if err != nil {
 		return nil, err
@@ -173,6 +173,6 @@ func (t *Tunnel) ConnectToService(svcAddr, domain string, localPort int) (*Tunne
 	}
 
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
-	t = NewTunnel(id, localPort, domain, session)
+	t = NewMultiplexer(id, localPort, domain, session)
 	return t, nil
 }

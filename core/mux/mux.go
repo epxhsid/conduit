@@ -93,7 +93,6 @@ func (t *Multiplexer) Start(ctx context.Context) {
 	}
 }
 
-// TODO: Implement stream handling logic
 // Helper to proxy one request
 // Connect to local service at localhost:localPort
 // Bidirectionally copy data between the stream and the local connection
@@ -109,27 +108,26 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 		return
 	}
 	defer localConn.Close()
+	defer stream.Close()
 
-	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
-		defer close(done)
-		_, err := io.Copy(localConn, stream)
-		if err != nil {
-			fmt.Printf("Error copying from stream to local connection: %v\n", err)
+		defer wg.Done()
+		if _, err := io.Copy(localConn, stream); err != nil {
+			fmt.Printf("stream -> local error: %v\n", err)
 		}
-		done <- struct{}{}
 	}()
 
 	go func() {
-		defer close(done)
-		_, err := io.Copy(stream, localConn)
-		if err != nil {
-			fmt.Printf("Error copying from local connection to stream: %v\n", err)
+		defer wg.Done()
+		if _, err := io.Copy(stream, localConn); err != nil {
+			fmt.Printf("local -> stream error: %v\n", err)
 		}
-		done <- struct{}{}
 	}()
 
-	<-done
+	wg.Wait()
 }
 
 // TODO: Implement tunnel close logic

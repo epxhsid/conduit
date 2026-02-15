@@ -131,6 +131,11 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 	wg.Wait()
 }
 
+// Same as HandleStream but with context cancellation support
+// so that if the context is cancelled, we can close the connections and stop handling the stream
+// This is specifically needed for graceful shutdowns and timeouts
+// We can use a select statement to wait for either the context to be cancelled or the copying to finish
+// If the context is cancelled, otherwise we can just close the connections and return
 func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux.Stream, localPort int) {
 	localAddr := fmt.Sprintf("localhost:%d", localPort)
 	localConn, err := net.Dial("tcp", localAddr)
@@ -164,19 +169,24 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 	}
 }
 
-// TODO: Implement tunnel close logic
-// clean shutdown of the session
-// mark tunnel as inactive
-// close all streams
+
 func (t *Multiplexer) Close() {
-	t.Active = false
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
-	for _, stream := range t.Streams {
-		stream.Close()
-	}
+	if t.Active {
+		fmt.Printf("Closing multiplexer for domain=%s\n", t.Domain)
+		t.Active = false
 
-	if t.Session != nil {
-		t.Session.Close()
+		for id, s := range t.Streams {
+			fmt.Printf("Closing stream %s\n", id)
+			s.Close()
+			delete(t.Streams, id)
+		}
+
+		if t.Session != nil {
+			t.Session.Close()
+		}
 	}
 }
 
@@ -206,5 +216,8 @@ func (t *Multiplexer) ConnectToService(svcAddr, domain string, localPort int) (*
 
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
 	t = NewMultiplexer(id, localPort, domain, session)
+
+	// send handshake 
+
 	return t, nil
 }

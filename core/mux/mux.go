@@ -136,6 +136,7 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 // This is specifically needed for graceful shutdowns and timeouts
 // We can use a select statement to wait for either the context to be cancelled or the copying to finish
 // If the context is cancelled, otherwise we can just close the connections and return
+// NOTE: goroutines can yeet their completion signal and exit properly even if the main function has already moved on [1]
 func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux.Stream, localPort int) {
 	localAddr := fmt.Sprintf("localhost:%d", localPort)
 	localConn, err := net.Dial("tcp", localAddr)
@@ -147,7 +148,7 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 	defer localConn.Close()
 	defer stream.Close()
 
-	done := make(chan struct{})
+	done := make(chan struct{}, 2) // [1]
 
 	copyFunc := func(dst, src net.Conn) {
 		_, _ = io.Copy(dst, src)
@@ -168,7 +169,6 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 		return
 	}
 }
-
 
 func (t *Multiplexer) Close() {
 	t.mu.Lock()
@@ -217,7 +217,7 @@ func (t *Multiplexer) ConnectToService(svcAddr, domain string, localPort int) (*
 	id := fmt.Sprintf("%d", time.Now().UnixNano())
 	t = NewMultiplexer(id, localPort, domain, session)
 
-	// send handshake 
+	// send handshake
 
 	return t, nil
 }

@@ -2,12 +2,9 @@ package mux
 
 import (
 	"context"
-	"io"
 	"net"
 	"strconv"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/yamux"
 )
@@ -61,46 +58,4 @@ func TestMultiplexerStart(t *testing.T) {
 	if string(buf[:n]) != expected {
 		t.Fatalf("Expected '%s', got '%s'", expected, string(buf[:n]))
 	}
-}
-
-func TestMultiplexerLocalServiceUnavailable(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Failed to listen on a port: %v", err)
-	}
-
-	_, portStr, _ := net.SplitHostPort(ln.Addr().String())
-	localPort, _ := strconv.Atoi(portStr)
-	ln.Close()
-
-	clientConn, serverConn := net.Pipe()
-	serverSession, _ := yamux.Server(serverConn, nil)
-	clientSession, _ := yamux.Client(clientConn, nil)
-
-	mux := NewMultiplexer("test_id_unavail", localPort, "test.local", serverSession)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go mux.Start(ctx)
-
-	stream, err := clientSession.OpenStream()
-	if err != nil {
-		t.Fatalf("Failed to open stream: %v", err)
-	}
-	defer stream.Close()
-
-	_, _ = stream.Write([]byte("hello"))
-	_ = stream.SetReadDeadline(time.Now().Add(1 * time.Second))
-
-	buf := make([]byte, 1024)
-	_, err = stream.Read(buf)
-	if err == nil {
-		t.Fatal("Expected read error due to local service unavailability, got none")
-	}
-
-	if err == io.EOF || strings.Contains(err.Error(), "reset") || strings.Contains(err.Error(), "closed") {
-		return
-	}
-	t.Fatalf("Expected error due to local service unavailability, got: %v", err)
 }

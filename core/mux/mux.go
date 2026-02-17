@@ -189,35 +189,3 @@ func (t *Multiplexer) Close() {
 		}
 	}
 }
-
-func (t *Multiplexer) ProxyStream() {
-	// TODO: Implement stream proxying logic
-	// Takes one stream (one HTTP request)
-	// forward data between the stream and the local service
-	// copies response back through the stream
-}
-
-// TODO: Dial TCP to server
-// Create yamux client session
-// Generate a unique tunnel ID (e.g. UUID)
-// assign the new Tunnel instance to the variable t
-// send a handshake with the domain and localPort
-// return the Tunnel instance
-func (t *Multiplexer) ConnectToService(svcAddr, domain string, localPort int) (*Multiplexer, error) {
-	conn, err := net.Dial("tcp", svcAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	session, err := yamux.Client(conn, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	id := fmt.Sprintf("%d", time.Now().UnixNano())
-	t = NewMultiplexer(id, localPort, domain, session)
-
-	// send handshake
-
-	return t, nil
-}

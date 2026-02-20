@@ -6,21 +6,22 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 )
 
 type Multiplexer struct {
-	ID        string
-	LocalPort int
-	Domain    string
-	Session   *yamux.Session
-	Streams   map[string]*yamux.Stream
-	mu        sync.Mutex
-	CreatedAt time.Time
-	Active    bool
+	ID            string
+	LocalPort     int
+	Domain        string
+	Session       *yamux.Session
+	Streams       map[string]*yamux.Stream
+	StreamCounter atomic.Uint64
+	mu            sync.Mutex
+	CreatedAt     time.Time
+	Active        bool
 }
 
 func NewMultiplexer(id string, localPort int, domain string, session *yamux.Session) *Multiplexer {
@@ -62,7 +63,7 @@ func (t *Multiplexer) Start(ctx context.Context) {
 
 		}
 
-		streamID := uuid.New().String()
+		streamID := fmt.Sprintf("stream-%d", t.StreamCounter.Add(1))
 		t.mu.Lock()
 		t.Streams[streamID] = stream
 		t.mu.Unlock()

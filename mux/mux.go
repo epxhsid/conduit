@@ -80,7 +80,12 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 	}
 	defer localConn.Close()
 
-	tcpConn := localConn.(*net.TCPConn)
+	tcpConn, ok := localConn.(*net.TCPConn)
+	if !ok {
+		localConn.Close()
+		stream.Close()
+		return
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)

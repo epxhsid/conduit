@@ -35,15 +35,6 @@ func NewMultiplexer(id string, localPort int, domain string, session *yamux.Sess
 	}
 }
 
-type MultiplexerInterface interface {
-	Start(ctx context.Context)
-	HandleStream(stream *yamux.Stream, localPort int)
-	HandleStreamWithContext(ctx context.Context, stream *yamux.Stream, localPort int)
-	Close()
-	ProxyStream()
-	ConnectToService(svcAddr, domain string, localPort int) (*Multiplexer, error)
-}
-
 // TODO: Implement tunnel start logic
 // Accept incoming streams from the yamux session
 // For each stream, reverse proxy data from domain:Domain to localhost:LocalPort

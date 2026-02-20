@@ -22,64 +22,63 @@ type Multiplexer struct {
 	ActiveStreams atomic.Int64
 	TotalStreams  atomic.Uint64
 	MaxStreams    int64
+	activeWG      sync.WaitGroup
 	mu            sync.Mutex
 	CreatedAt     time.Time
-	Active        bool
+	Active        atomic.Bool
 }
 
 func NewMultiplexer(id string, localPort int, domain string, session *yamux.Session) *Multiplexer {
-	return &Multiplexer{
+	m := &Multiplexer{
 		ID:        id,
 		LocalPort: localPort,
 		Domain:    domain,
 		Session:   session,
 		CreatedAt: time.Now(),
-		Active:    true,
 	}
+	m.Active.Store(true)
+	return m
 }
 
 func (t *Multiplexer) Start(ctx context.Context) {
 	fmt.Printf("Multiplexer started: domain=%s localPort=%d\n", t.Domain, t.LocalPort)
 
-	var wg sync.WaitGroup
-	defer func() {
-		wg.Wait()
-		fmt.Printf("Multiplexer for domain=%s shutting down\n", t.Domain)
-	}()
-
 	for {
 		stream, err := t.Session.AcceptStreamWithContext(ctx)
 		if err != nil {
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil || t.Session.IsClosed() || errors.Is(err, io.EOF) {
 				fmt.Println("Multiplexer shutting down...")
 				return
-			default:
-				if ctx.Err() != nil {
-					return
-				}
-				if errors.Is(err, io.EOF) || t.Session.IsClosed() {
-					return
-				}
-				continue
 			}
-		}
 
-		wg.Add(1)
-
-		if t.MaxStreams > 0 && t.ActiveStreams.Load() >= t.MaxStreams {
-			stream.Close()
+			fmt.Printf("Error accepting stream: %v\n", err)
 			continue
 		}
 
-		t.ActiveStreams.Add(1)
+		if t.MaxStreams > 0 {
+			active := t.ActiveStreams.Load()
+			if active >= t.MaxStreams {
+				stream.Close()
+				continue
+			}
+
+			t.ActiveStreams.Add(1)
+		} else {
+			t.ActiveStreams.Add(1)
+		}
+
 		t.TotalStreams.Add(1)
+		t.activeWG.Add(1)
 
 		go func(s *yamux.Stream) {
+			defer t.activeWG.Done()
 			defer t.ActiveStreams.Add(-1)
 			defer s.Close()
-
-			t.HandleStream(s, t.LocalPort)
+			if ctx.Err() != nil {
+				t.HandleStream(s, t.LocalPort)
+			} else {
+				t.HandleStreamWithContext(ctx, s, t.LocalPort)
+			}
 		}(stream)
 	}
 }
@@ -162,6 +161,13 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 	}()
 
 	wg.Wait()
+}
+
+func (m *Multiplexer) Shutdown() {
+	m.Active.Store(false)
+	m.Session.Close()
+	m.activeWG.Wait()
+	fmt.Printf("Multiplexer for domain=%s shut down\n", m.Domain)
 }
 
 func (t *Multiplexer) Stats() string {

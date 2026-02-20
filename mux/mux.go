@@ -92,13 +92,17 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 
 	go func() {
 		defer wg.Done()
-		io.Copy(tcpConn, stream)
+		if _, err := io.Copy(tcpConn, stream); err != nil && !errors.Is(err, net.ErrClosed) {
+			fmt.Printf("Error copying from stream to local connection: %v\n", err)
+		}
 		tcpConn.CloseWrite()
 	}()
 
 	go func() {
 		defer wg.Done()
-		io.Copy(stream, tcpConn)
+		if _, err := io.Copy(stream, tcpConn); err != nil && !errors.Is(err, net.ErrClosed) {
+			fmt.Printf("Error copying from local connection to stream: %v\n", err)
+		}
 		stream.Close()
 	}()
 
@@ -114,7 +118,12 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 	defer localConn.Close()
 	defer stream.Close()
 
-	tcpConn := localConn.(*net.TCPConn)
+	tcpConn, ok := localConn.(*net.TCPConn)
+	if !ok {
+		localConn.Close()
+		stream.Close()
+		return
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -127,13 +136,17 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 
 	go func() {
 		defer wg.Done()
-		io.Copy(tcpConn, stream)
+		if _, err := io.Copy(tcpConn, stream); err != nil && !errors.Is(err, net.ErrClosed) {
+			fmt.Printf("Error copying from stream to local connection: %v\n", err)
+		}
 		tcpConn.CloseWrite()
 	}()
 
 	go func() {
 		defer wg.Done()
-		io.Copy(stream, tcpConn)
+		if _, err := io.Copy(stream, tcpConn); err != nil && !errors.Is(err, net.ErrClosed) {
+			fmt.Printf("Error copying from local connection to stream: %v\n", err)
+		}
 		stream.Close()
 	}()
 

@@ -9,12 +9,12 @@ import (
 
 type Registry struct {
 	sync.RWMutex
-	Streams map[string]*yamux.Stream
+	Tunnels map[string]*Tunnel
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		Streams: make(map[string]*yamux.Stream),
+		Tunnels: make(map[string]*Tunnel),
 	}
 }
 
@@ -31,11 +31,11 @@ type Tunnel struct {
 // If a request comes in with Host "test.local", the handler will call GetSession("test.local")
 // to get the stream to proxy the request through. If the stream exists, it will forward the request to the local service.
 // If the stream does not exist, it can return an error or a default response indicating that the domain is not available.
-func (r *Registry) GetSession(domain string) (*yamux.Stream, bool) {
+func (r *Registry) Get(domain string) (*Tunnel, bool) {
 	r.RLock()
 	defer r.RUnlock()
-	stream, exists := r.Streams[domain]
-	return stream, exists
+	t, ok := r.Tunnels[domain]
+	return t, ok
 }
 
 // AddSession adds a new yamux stream to the registry for the specified domain.
@@ -44,10 +44,14 @@ func (r *Registry) GetSession(domain string) (*yamux.Stream, bool) {
 // we create a yamux stream for that client and add it to the registry with the key "test.local".
 // RemoveSession removes the yamux stream associated with the given domain from the registry.
 // This is called when a client disconnects or when we want to clean up resources for a domain.
-func (r *Registry) AddSession(domain string, stream *yamux.Stream) {
+func (r *Registry) Register(domain string, session *yamux.Session, targetPort int) {
 	r.Lock()
 	defer r.Unlock()
-	r.Streams[domain] = stream
+	r.Tunnels[domain] = &Tunnel{
+		Session:    session,
+		TargetPort: targetPort,
+		CreatedAt:  time.Now(),
+	}
 }
 
 // RemoveSession removes the yamux stream associated with the given domain from the registry.
@@ -55,8 +59,8 @@ func (r *Registry) AddSession(domain string, stream *yamux.Stream) {
 // example: if the client that was proxying requests for "test.local" disconnects, we call
 // RemoveSession("test.local") to remove the stream from the registry, so that future requests
 // for "test.local" will not find a stream and can return an error or a default response.
-func (r *Registry) RemoveSession(domain string) {
+func (r *Registry) Remove(domain string) {
 	r.Lock()
 	defer r.Unlock()
-	delete(r.Streams, domain)
+	delete(r.Tunnels, domain)
 }

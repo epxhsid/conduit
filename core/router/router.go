@@ -2,6 +2,7 @@ package router
 
 import (
 	"sync"
+	"time"
 
 	"github.com/hashicorp/yamux"
 )
@@ -15,6 +16,12 @@ func NewRegistry() *Registry {
 	return &Registry{
 		Streams: make(map[string]*yamux.Stream),
 	}
+}
+
+type Tunnel struct {
+	Session    *yamux.Session
+	TargetPort int
+	CreatedAt  time.Time
 }
 
 // GetSession retrieves the yamux stream associated with the given domain.

@@ -22,6 +22,7 @@ type Tunnel struct {
 	Session    *yamux.Session
 	TargetPort int
 	CreatedAt  time.Time
+	Domain     string
 }
 
 func (r *Registry) Get(domain string) (*Tunnel, bool) {

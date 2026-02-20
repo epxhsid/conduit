@@ -119,36 +119,38 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 // If the context is cancelled, otherwise we can just close the connections and return
 // NOTE: goroutines can yeet their completion signal and exit properly even if the main function has already moved on [1]
 func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux.Stream, localPort int) {
-	localAddr := fmt.Sprintf("localhost:%d", localPort)
-	localConn, err := net.Dial("tcp", localAddr)
+	localConn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
 	if err != nil {
-		fmt.Printf("Error connecting to local service: %v\n", err)
 		stream.Close()
 		return
 	}
 	defer localConn.Close()
 	defer stream.Close()
 
-	done := make(chan struct{}, 2) // [1]
+	tcpConn := localConn.(*net.TCPConn)
 
-	copyFunc := func(dst, src net.Conn) {
-		_, _ = io.Copy(dst, src)
-		done <- struct{}{}
-	}
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	go copyFunc(localConn, stream)
-	go copyFunc(stream, localConn)
+	go func() {
+		<-ctx.Done()
+		stream.SetDeadline(time.Now())
+		tcpConn.SetDeadline(time.Now())
+	}()
 
-	select {
-	case <-ctx.Done():
-		fmt.Println("Stream handling context cancelled, closing connections...")
-		localConn.Close()
+	go func() {
+		defer wg.Done()
+		io.Copy(tcpConn, stream)
+		tcpConn.CloseWrite()
+	}()
+
+	go func() {
+		defer wg.Done()
+		io.Copy(stream, tcpConn)
 		stream.Close()
-		return
-	case <-done:
-		fmt.Println("Stream handling completed")
-		return
-	}
+	}()
+
+	wg.Wait()
 }
 
 // Close the multiplexer and all active streams.

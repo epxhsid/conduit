@@ -19,6 +19,9 @@ type Multiplexer struct {
 	Domain        string
 	Session       *yamux.Session
 	StreamCounter atomic.Uint64
+	ActiveStreams atomic.Int64
+	TotalStreams  atomic.Uint64
+	MaxStreams    int64
 	mu            sync.Mutex
 	CreatedAt     time.Time
 	Active        bool
@@ -64,8 +67,16 @@ func (t *Multiplexer) Start(ctx context.Context) {
 
 		wg.Add(1)
 
+		if t.MaxStreams > 0 && t.ActiveStreams.Load() >= t.MaxStreams {
+			stream.Close()
+			continue
+		}
+
+		t.ActiveStreams.Add(1)
+		t.TotalStreams.Add(1)
+
 		go func(s *yamux.Stream) {
-			defer wg.Done()
+			defer t.ActiveStreams.Add(-1)
 			defer s.Close()
 
 			t.HandleStream(s, t.LocalPort)
@@ -151,4 +162,12 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 	}()
 
 	wg.Wait()
+}
+
+func (t *Multiplexer) Stats() string {
+	return fmt.Sprintf(
+		"active=%d total=%d",
+		t.ActiveStreams.Load(),
+		t.TotalStreams.Load(),
+	)
 }

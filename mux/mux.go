@@ -2,6 +2,7 @@ package mux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,7 +18,6 @@ type Multiplexer struct {
 	LocalPort     int
 	Domain        string
 	Session       *yamux.Session
-	Streams       map[string]*yamux.Stream
 	StreamCounter atomic.Uint64
 	mu            sync.Mutex
 	CreatedAt     time.Time
@@ -30,7 +30,6 @@ func NewMultiplexer(id string, localPort int, domain string, session *yamux.Sess
 		LocalPort: localPort,
 		Domain:    domain,
 		Session:   session,
-		Streams:   make(map[string]*yamux.Stream),
 		CreatedAt: time.Now(),
 		Active:    true,
 	}
@@ -57,8 +56,12 @@ func (t *Multiplexer) Start(ctx context.Context) {
 				fmt.Println("Multiplexer shutting down...")
 				return
 			default:
-				fmt.Printf("Accept stream error: %v\n", err)
-				continue
+				if errors.Is(err, io.EOF) {
+					return
+				}
+				if t.Session.IsClosed() {
+					return
+				}
 			}
 
 		}

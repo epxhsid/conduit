@@ -162,6 +162,9 @@ func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux
 	}
 }
 
+// Close the multiplexer and all active streams.
+// Set Active to false, close all streams and the yamux session.
+// This will cause the Start loop to exit and the multiplexer to stop.
 func (t *Multiplexer) Close() {
 	t.mu.Lock()
 	defer t.mu.Unlock()

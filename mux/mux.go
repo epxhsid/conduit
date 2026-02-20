@@ -41,11 +41,11 @@ func NewMultiplexer(id string, localPort int, domain string, session *yamux.Sess
 // run in a loop until tunnel is closed
 func (t *Multiplexer) Start(ctx context.Context) {
 	fmt.Printf("Multiplexer started: domain=%s localPort=%d\n", t.Domain, t.LocalPort)
+
 	var wg sync.WaitGroup
 	defer func() {
-		fmt.Println("Waiting for active streams to finish...")
 		wg.Wait()
-		fmt.Println("Multiplexer stopped")
+		fmt.Printf("Multiplexer for domain=%s shutting down\n", t.Domain)
 	}()
 
 	for {
@@ -56,36 +56,26 @@ func (t *Multiplexer) Start(ctx context.Context) {
 				fmt.Println("Multiplexer shutting down...")
 				return
 			default:
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				if t.Session.IsClosed() {
-					return
+				if err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					if errors.Is(err, io.EOF) || t.Session.IsClosed() {
+						return
+					}
+					continue
 				}
 			}
 
+			wg.Add(1)
+
+			go func(s *yamux.Stream) {
+				defer wg.Done()
+				defer s.Close()
+
+				t.HandleStream(s, t.LocalPort)
+			}(stream)
 		}
-
-		streamID := fmt.Sprintf("stream-%d", t.StreamCounter.Add(1))
-		t.mu.Lock()
-		t.Streams[streamID] = stream
-		t.mu.Unlock()
-
-		fmt.Printf("New stream %s accepted for domain=%s\n", streamID, t.Domain)
-
-		wg.Add(1)
-		go func(id string, s *yamux.Stream) {
-			defer wg.Done()
-			defer func() {
-				t.mu.Lock()
-				delete(t.Streams, id)
-				t.mu.Unlock()
-				s.Close()
-				fmt.Printf("Stream %s finished\n", id)
-			}()
-
-			t.HandleStream(s, t.LocalPort)
-		}(streamID, stream)
 	}
 }
 

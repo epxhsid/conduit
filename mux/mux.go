@@ -35,10 +35,6 @@ func NewMultiplexer(id string, localPort int, domain string, session *yamux.Sess
 	}
 }
 
-// TODO: Implement tunnel start logic
-// Accept incoming streams from the yamux session
-// For each stream, reverse proxy data from domain:Domain to localhost:LocalPort
-// run in a loop until tunnel is closed
 func (t *Multiplexer) Start(ctx context.Context) {
 	fmt.Printf("Multiplexer started: domain=%s localPort=%d\n", t.Domain, t.LocalPort)
 
@@ -79,12 +75,6 @@ func (t *Multiplexer) Start(ctx context.Context) {
 	}
 }
 
-// Helper to proxy one request
-// Connect to local service at localhost:localPort
-// Bidirectionally copy data between the stream and the local connection
-// copy from stream to local connection and vice versa
-// io.Copy bidirectionally between stream and local connection (sorry for the mess)
-// and finally, wait for either copy to finish
 func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 	localConn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
 	if err != nil {
@@ -112,12 +102,6 @@ func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
 	wg.Wait()
 }
 
-// Same as HandleStream but with context cancellation support
-// so that if the context is cancelled, we can close the connections and stop handling the stream
-// This is specifically needed for graceful shutdowns and timeouts
-// We can use a select statement to wait for either the context to be cancelled or the copying to finish
-// If the context is cancelled, otherwise we can just close the connections and return
-// NOTE: goroutines can yeet their completion signal and exit properly even if the main function has already moved on [1]
 func (t *Multiplexer) HandleStreamWithContext(ctx context.Context, stream *yamux.Stream, localPort int) {
 	localConn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
 	if err != nil {

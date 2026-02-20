@@ -86,31 +86,27 @@ func (t *Multiplexer) Start(ctx context.Context) {
 // io.Copy bidirectionally between stream and local connection (sorry for the mess)
 // and finally, wait for either copy to finish
 func (t *Multiplexer) HandleStream(stream *yamux.Stream, localPort int) {
-	localAddr := fmt.Sprintf("localhost:%d", localPort)
-	localConn, err := net.Dial("tcp", localAddr)
+	localConn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
 	if err != nil {
-		fmt.Printf("Error connecting to local service: %v\n", err)
-		stream.Close()
 		return
 	}
 	defer localConn.Close()
-	defer stream.Close()
+
+	tcpConn := localConn.(*net.TCPConn)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
-		if _, err := io.Copy(localConn, stream); err != nil {
-			fmt.Printf("stream -> local error: %v\n", err)
-		}
+		io.Copy(tcpConn, stream)
+		tcpConn.CloseWrite()
 	}()
 
 	go func() {
 		defer wg.Done()
-		if _, err := io.Copy(stream, localConn); err != nil {
-			fmt.Printf("local -> stream error: %v\n", err)
-		}
+		io.Copy(stream, tcpConn)
+		stream.Close()
 	}()
 
 	wg.Wait()

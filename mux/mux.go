@@ -52,26 +52,24 @@ func (t *Multiplexer) Start(ctx context.Context) {
 				fmt.Println("Multiplexer shutting down...")
 				return
 			default:
-				if err != nil {
-					if ctx.Err() != nil {
-						return
-					}
-					if errors.Is(err, io.EOF) || t.Session.IsClosed() {
-						return
-					}
-					continue
+				if ctx.Err() != nil {
+					return
 				}
+				if errors.Is(err, io.EOF) || t.Session.IsClosed() {
+					return
+				}
+				continue
 			}
-
-			wg.Add(1)
-
-			go func(s *yamux.Stream) {
-				defer wg.Done()
-				defer s.Close()
-
-				t.HandleStream(s, t.LocalPort)
-			}(stream)
 		}
+
+		wg.Add(1)
+
+		go func(s *yamux.Stream) {
+			defer wg.Done()
+			defer s.Close()
+
+			t.HandleStream(s, t.LocalPort)
+		}(stream)
 	}
 }
 

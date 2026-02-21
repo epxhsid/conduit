@@ -30,3 +30,8 @@ go.work.sum
 .zed/
 .vscode-test/
 
+
+
+# Added by cargo
+
+/target

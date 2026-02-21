@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/hashicorp/yamux"
 )
@@ -23,11 +24,33 @@ func NewClient(vpsAddr, domain string, localPort int) *Client {
 	}
 }
 
+func (c *Client) Run(ctx context.Context) {
+	delay := time.Second
+
+	for {
+		err := c.Start(ctx)
+		if err == nil {
+			return
+		}
+
+		time.Sleep(delay)
+
+		delay *= 2
+		if delay > 30*time.Second {
+			delay = 30 * time.Second
+		}
+	}
+}
+
 func (c *Client) Start(ctx context.Context) error {
 	conn, err := net.Dial("tcp", c.VpsAddr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to VPS: %w", err)
 	}
+
+	// Temporary: send domain as plain text header
+	// (Binary protocol will replace this later)
+	fmt.Fprintf(conn, "%s\n", c.Domain)
 
 	session, err := yamux.Client(conn, nil)
 	if err != nil {
@@ -35,9 +58,6 @@ func (c *Client) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create yamux session: %w", err)
 	}
 
-	// Temporary: send domain as plain text header
-	// (Binary protocol will replace this later)
-	fmt.Fprintf(conn, "%s\n", c.Domain)
 	fmt.Println("Client connected:", c.Domain)
 
 	for {

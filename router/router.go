@@ -32,6 +32,16 @@ func (r *Registry) Get(domain string) (*Tunnel, bool) {
 	return t, ok
 }
 
+func (r *Registry) List() map[string]*Tunnel {
+	r.RLock()
+	defer r.RUnlock()
+	copy := make(map[string]*Tunnel)
+	for k, v := range r.Tunnels {
+		copy[k] = v
+	}
+	return copy
+}
+
 func (r *Registry) Register(domain string, session *yamux.Session, targetPort int) {
 	r.Lock()
 	defer r.Unlock()

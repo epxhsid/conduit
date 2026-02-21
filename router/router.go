@@ -3,7 +3,6 @@ package router
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 )
@@ -25,11 +24,11 @@ func StartRouter(ctx context.Context, addr string, registry *Registry) error {
 			continue
 		}
 
-		go handleRouterConnection(ctx, conn, registry)
+		go handleRouterConnection(ctx, conn, registry, NewPipe())
 	}
 }
 
-func handleRouterConnection(ctx context.Context, conn net.Conn, registry *Registry) {
+func handleRouterConnection(ctx context.Context, conn net.Conn, registry *Registry, pipe *Pipe) {
 	defer conn.Close()
 
 	buf := make([]byte, 256)
@@ -43,23 +42,15 @@ func handleRouterConnection(ctx context.Context, conn net.Conn, registry *Regist
 
 	tunnel, ok := registry.Get(domain)
 	if !ok {
-		fmt.Println("No tunnel for domain:", domain)
+		fmt.Println("Unknown domain:", domain)
 		return
 	}
 
 	stream, err := tunnel.Session.OpenStream()
 	if err != nil {
-		fmt.Println("Failed to open yamux stream:", err)
+		fmt.Println("Failed to open tunnel stream:", err)
 		return
 	}
 
-	go pipe(conn, stream)
-	go pipe(stream, conn)
-}
-
-func pipe(a io.ReadWriteCloser, b io.ReadWriteCloser) {
-	defer a.Close()
-	defer b.Close()
-
-	io.Copy(a, b)
+	pipe.Pipe(conn, stream)
 }

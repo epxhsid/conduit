@@ -22,15 +22,15 @@ const (
 	CmdError     uint16 = 0x0006
 )
 
+const (
+	CmdMin uint16 = 0x0001
+	CmdMax uint16 = 0x0006
+)
+
 var (
-	ErrInvalidVersion     = errors.New("invalid protocol version")
-	ErrInvalidType        = errors.New("invalid command type")
-	ErrFrameTooLarge      = errors.New("frame payload exceeds maximum allowed size")
-	ErrDomainTooLarge     = errors.New("domain name exceeds maximum allowed size")
-	ErrInvalidPayload     = errors.New("invalid command payload")
-	ErrUnexpectedEOF      = errors.New("unexpected end of file")
-	ErrInternalError      = errors.New("internal server error")
-	ErrUnsupportedCommand = errors.New("unsupported command type")
-	ErrInvalidHandshake   = errors.New("invalid handshake payload")
-	ErrInvalidData        = errors.New("invalid data payload")
+	ErrFrameTooLarge      = errors.New("frame too large")
+	ErrUnsupportedCommand = errors.New("unsupported command")
+	ErrInvalidHandshake   = errors.New("invalid handshake")
+	ErrInvalidPayload     = errors.New("invalid payload")
+	ErrDomainTooLarge     = errors.New("domain too large")
 )

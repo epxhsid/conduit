@@ -6,7 +6,7 @@ const (
 	Version uint16 = 0x0001
 )
 
-const HeaderSize = 4
+const HeaderSize = 8
 
 const (
 	MaxFrameSize  = 64 * 1024

@@ -24,11 +24,11 @@ func StartRouter(ctx context.Context, addr string, registry *Registry) error {
 			continue
 		}
 
-		go handleRouterConnection(ctx, conn, registry, NewPipe())
+		go handleRouterConnection(conn, registry, NewPipe())
 	}
 }
 
-func handleRouterConnection(ctx context.Context, conn net.Conn, registry *Registry, pipe *Pipe) {
+func handleRouterConnection(conn net.Conn, registry *Registry, pipe *Pipe) {
 	defer conn.Close()
 
 	buf := make([]byte, 256)
